@@ -1,0 +1,31 @@
+# greenpt.com/honey/mac links to releases/latest/download/HoneyForMac.dmg,
+# which needs an asset whose name never changes. Releases ship a versioned
+# HoneyForMac-x.y.z.dmg, so copy it under the stable name on publish.
+name: Attach stable-named dmg
+
+on:
+  release:
+    types: [published, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  alias:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Re-upload newest dmg as HoneyForMac.dmg
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          asset=$(gh release view "$TAG" --repo "$REPO" --json assets \
+            --jq '.assets[].name | select(test("^HoneyForMac-.*\\.dmg$"))' | head -n1)
+          if [ -z "$asset" ]; then
+            echo "No versioned dmg on $TAG, nothing to alias." && exit 0
+          fi
+          gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir .
+          mv "$asset" HoneyForMac.dmg
+          gh release upload "$TAG" HoneyForMac.dmg --repo "$REPO" --clobber
