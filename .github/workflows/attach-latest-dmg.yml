@@ -1,7 +1,7 @@
-# greenpt.com/honey/mac links to releases/latest/download/HoneyForMac.dmg,
-# which needs an asset whose name never changes. Releases ship a versioned
-# HoneyForMac-x.y.z.dmg, so copy it under the stable name on publish.
-name: Attach stable-named dmg
+# greenpt.com/honey/mac links to releases/latest/download/HoneyForMac.pkg,
+# which needs an asset whose name never changes. Releases ship versioned
+# HoneyForMac-x.y.z.{pkg,dmg}, so copy them under stable names on publish.
+name: Attach stable-named installers
 
 on:
   release:
@@ -19,7 +19,7 @@ jobs:
   alias:
     runs-on: ubuntu-latest
     steps:
-      - name: Re-upload newest dmg as HoneyForMac.dmg
+      - name: Re-upload newest installers under stable names
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name || inputs.tag }}
@@ -27,11 +27,14 @@ jobs:
         run: |
           set -euo pipefail
           [ -n "$TAG" ] || TAG=$(gh release view --repo "$REPO" --json tagName --jq .tagName)
-          asset=$(gh release view "$TAG" --repo "$REPO" --json assets \
-            --jq '.assets[].name | select(test("^HoneyForMac-.*\\.dmg$"))' | head -n1)
-          if [ -z "$asset" ]; then
-            echo "No versioned dmg on $TAG, nothing to alias." && exit 0
-          fi
-          gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir .
-          mv "$asset" HoneyForMac.dmg
-          gh release upload "$TAG" HoneyForMac.dmg --repo "$REPO" --clobber
+          for ext in pkg dmg; do
+            asset=$(gh release view "$TAG" --repo "$REPO" --json assets \
+              --jq ".assets[].name | select(test(\"^HoneyForMac-.*\\\\.$ext\$\"))" | head -n1)
+            if [ -z "$asset" ]; then
+              echo "No versioned .$ext on $TAG, skipping."
+              continue
+            fi
+            gh release download "$TAG" --repo "$REPO" --pattern "$asset" --dir . --clobber
+            mv "$asset" "HoneyForMac.$ext"
+            gh release upload "$TAG" "HoneyForMac.$ext" --repo "$REPO" --clobber
+          done
