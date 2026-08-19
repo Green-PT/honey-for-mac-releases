@@ -6,6 +6,11 @@ name: Attach stable-named dmg
 on:
   release:
     types: [published, edited]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to alias (defaults to the latest release)
+        required: false
 
 permissions:
   contents: write
@@ -17,10 +22,11 @@ jobs:
       - name: Re-upload newest dmg as HoneyForMac.dmg
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.release.tag_name }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          [ -n "$TAG" ] || TAG=$(gh release view --repo "$REPO" --json tagName --jq .tagName)
           asset=$(gh release view "$TAG" --repo "$REPO" --json assets \
             --jq '.assets[].name | select(test("^HoneyForMac-.*\\.dmg$"))' | head -n1)
           if [ -z "$asset" ]; then
